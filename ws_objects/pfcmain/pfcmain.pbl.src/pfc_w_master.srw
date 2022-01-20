@@ -3922,7 +3922,7 @@ ElseIf li_rc < 0 Then
 					"The information entered does not pass validation and "  + &
 					"must be corrected before changes can be saved.~r~n~r~n" + &
 					"Close without saving changes?", &
-					exclamation!, YesNo!, 2)
+					Question!, YesNo!, 2)
 	End If
 	If li_msg = 1 Then
 		ib_closestatus = False
@@ -3942,7 +3942,7 @@ Else
 	Else
 		li_msg = of_MessageBox ("pfc_master_closequery_savechanges", &
 					gnv_app.iapp_object.DisplayName, &
-					"Do you want to save changes?", exclamation!, YesNoCancel!, 1)
+					"Do you want to save changes?", Question!, YesNoCancel!, 1)
 	End If
 	Choose Case li_msg
 		Case 1
