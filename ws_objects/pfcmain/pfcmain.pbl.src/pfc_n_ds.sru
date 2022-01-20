@@ -51,6 +51,10 @@ string			is_updatesallowed='IUD'
 window			iw_parentwindow
 powerobject		ipo_parent
 powerobject		ipo_updaterequestor
+
+Private:
+boolean		ib_printlegacy = True
+
 end variables
 
 forward prototypes
@@ -79,6 +83,8 @@ public function boolean of_IsUpdateable ()
 protected function integer of_messagebox (string as_id, string as_title, string as_text, icon ae_icon, button ae_button, integer ai_default)
 public function integer of_setparent (powerobject apo_parent)
 public function integer of_getparent (ref powerobject apo_parent)
+private function integer of_printsetup ()
+protected subroutine of_setlegacyprint (readonly boolean ab_value)
 end prototypes
 
 event pfc_printpreview;//////////////////////////////////////////////////////////////////////////////
@@ -313,10 +319,12 @@ event type integer pfc_print();/////////////////////////////////////////////////
 //	Version
 //	6.0   Initial version
 //
-// 8.0   Fix CR#261992  11/20/2001
-// 10.0 Use new overloaded function ds.Print(canceldlg, showPrintDlg) which could display Print Dialog,
-//////////////////////////////////////////////////////////////////////////////
-//
+// 8.0   		Fix CR#261992  11/20/2001
+// 10.0 		Use new overloaded function ds.Print(canceldlg, showPrintDlg) which could display Print Dialog,
+// PB2021	01/08/2021, If in the pb.ini file [Datastore Behavior], UseHwnd=No, 
+//				then you have to set "ib_printlegacy" to FALSE from "n_ds" by calling n_ds.of_setLegacyPrint(false)
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 /*
  * Open Source PowerBuilder Foundation Class Libraries
  *
@@ -345,7 +353,19 @@ long		ll_selectedrow
 long		ll_selected[]
 long		ll_cnt
 string		ls_val
-datastore				lds_selection
+datastore lds_selection
+
+// this variable can be set in "n_ds" by the developer with a call to of_setLegacyPrint(true/false). The default value = True
+IF NOT ib_printLegacy THEN
+	// this means that in the pb.ini: [DataStore Behavior], UseHwnd=No
+	// call method that displays print dialog and sets the specs
+	li_rc = this.of_printsetup( )
+	if li_rc > 0 then 
+		// print silently
+		li_rc = this.print( false, false ) 
+	end if
+	RETURN li_rc
+END IF
 
 // Print selection
 if this.object.datawindow.print.page.range = "selection" then
@@ -2617,6 +2637,68 @@ apo_parent = lpo_notvalid
 Return -1
 end function
 
+private function integer of_printsetup ();/////////////////////////////////////////////////////////////////////////
+//
+// Opens dummy window to show regular print dialog. Gets print specs and
+// sets them via modify
+//
+/////////////////////////////////////////////////////////////////////////
+u_dw_for_ds_print ldw_dw
+w_ds_print lw_dummy
+int li_rc
+long ll_pagecount
+
+//Use print preview to get current pagecount
+this.modify ( 'datawindow.print.preview=yes' )
+ll_PageCount = long ( this.describe  (  "evaluate('pagecount()', 1)"  )  )
+this.modify ( 'datawindow.print.preview=no' )
+
+// Open dummy window and have it open the dummy DW
+Open(lw_dummy)
+ldw_dw = create u_dw_for_ds_print
+lw_dummy.openuserobject( ldw_dw )
+ldw_dw.dataobject = this.dataobject
+// call function that displays the dialog 
+li_rc = ldw_dw.of_printsetup(ll_PageCount)
+
+// get print specs from DW and set them to this DS via modify
+if li_rc > 0 then 
+	this.Modify("DataWindow.Print.Orientation= '" + ldw_dw.describe("DataWindow.Print.Orientation") + "'")
+	this.Modify("DataWindow.Print.Copies= '" + ldw_dw.describe("DataWindow.Print.Copies") + "'")
+	this.Modify("DataWindow.Print.DocumentName= '" + ldw_dw.describe("DataWindow.Print.DocumentName") + "'")
+	this.Modify("DataWindow.Print.Duplex= '" + ldw_dw.describe("DataWindow.Print.Duplex") + "'")
+	this.Modify("DataWindow.Print.FileName= '" + ldw_dw.describe("DataWindow.Print.FileName") + "'")
+	this.Modify("DataWindow.Print.Margin.Bottom= '" + ldw_dw.describe("DataWindow.Print.Margin.Bottom") + "'")
+	this.Modify("DataWindow.Print.Margin.Left= '" + ldw_dw.describe("DataWindow.Print.Margin.Left") + "'")
+	this.Modify("DataWindow.Print.Margin.Right= '" + ldw_dw.describe("DataWindow.Print.Margin.Right") + "'")
+	this.Modify("DataWindow.Print.Margin.Top= '" + ldw_dw.describe("DataWindow.Print.Margin.Top") + "'")
+	this.Modify("DataWindow.Print.Page.Range= '" + ldw_dw.describe("DataWindow.Print.Page.Range") + "'")
+	this.Modify("DataWindow.Print.Page.RangeInclude= '" + ldw_dw.describe("DataWindow.Print.Page.RangeInclude") + "'")
+	this.Modify("DataWindow.Print.Paper.Size= '" + ldw_dw.describe("DataWindow.Print.Paper.Size") + "'")
+	this.Modify("DataWindow.Print.Paper.Source= '" + ldw_dw.describe("DataWindow.Print.Paper.Source") + "'")
+	this.Modify("DataWindow.Print.PrinterName= '" + ldw_dw.describe("DataWindow.Print.PrinterName") + "'")
+	this.Modify("DataWindow.Print.Prompt= '" + ldw_dw.describe("DataWindow.Print.Prompt") + "'")
+	this.Modify("DataWindow.Print.Quality= '" + ldw_dw.describe("DataWindow.Print.Quality") + "'")
+	this.Modify("DataWindow.Print.Scale= '" + ldw_dw.describe("DataWindow.Print.Scale") + "'")
+	this.Modify("DataWindow.Printer= '" + ldw_dw.describe("DataWindow.Printer") + "'")
+end if
+//Close dummy DW and window
+lw_dummy.closeuserobject( ldw_dw )
+close(lw_dummy)
+
+return li_rc
+
+end function
+
+protected subroutine of_setlegacyprint (readonly boolean ab_value);////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// void of_setLegacyPrint(true/false):
+// PB2021	01/08/2021, If in the pb.ini file [Datastore Behavior], UseHwnd=No, 
+//				then you have to set "ib_printlegacy" to FALSE from "n_ds" by calling n_ds.of_setLegacyPrint(false)
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+ib_printlegacy = ab_value
+
+end subroutine
+
 event retrievestart;//////////////////////////////////////////////////////////////////////////////
 //
 //	Event:  retrievestart
@@ -3002,6 +3084,12 @@ If IsValid(gnv_app) Then
 		End If
 	End If
 End If
+
+end event
+
+event constructor;// If you have a pb.ini file with: [DataStore Behavior], UseHwnd=No, then set this to FALSE by calling the below function in "n_ds"
+// By default we set it to TRUE. So depending on you PB.INI, you might want to change this.
+of_setLegacyPrint(True)
 
 end event
 
